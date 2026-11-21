@@ -1,0 +1,21 @@
+# 环境
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 第三方模型（用 scripts/fetch_models.ps1 拉，不入库）
+third_party/
+
+# 运行产物
+logs/
+runs/
+*.jsonl
+!tests/fixtures/*.jsonl
+
+# 报告：图片入库，其他生成物不入库
+reports/*.md
+reports/*.html

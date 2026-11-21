@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arm-agent-safety-eval"
+version = "0.1.0"
+description = "Safety evaluation harness for LLM-driven robot arm agents: approval gating, hard blocks, adversarial cases, tamper-evident audit."
+requires-python = ">=3.10"
+dependencies = [
+  "mujoco>=3.2",
+  "numpy>=1.24",
+  "pydantic>=2.6",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "matplotlib>=3.8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: takes more than a few seconds",
+  "live: calls a real LLM, needs API key, excluded from CI",
+  "gpu: needs a GPU / display",
+]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:arm_eval.*"]
