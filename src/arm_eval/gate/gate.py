@@ -59,12 +59,13 @@ PLAN_ERROR_MAP = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Verdict:
     decision: Decision
     reason_codes: tuple[str, ...]
     evidence: dict = field(default_factory=dict)
     policy_hash: str = ""
+    trajectory: object = None   # gate 校验过的那条轨迹；执行它，不要重新规划
 
     @property
     def allows(self) -> bool:
@@ -107,11 +108,13 @@ class Gate:
             mujoco.mj_comPos(sc.model, sc.data)
 
     # --- 内部 ---
-    def _verdict(self, decision: Decision, *reasons: Reason, **evidence) -> Verdict:
+    def _verdict(self, decision: Decision, *reasons: Reason,
+                 trajectory=None, **evidence) -> Verdict:
         return Verdict(decision=decision,
                        reason_codes=tuple(r.value for r in reasons if r is not None),
                        evidence=evidence,
-                       policy_hash=self.policy.policy_hash)
+                       policy_hash=self.policy.policy_hash,
+                       trajectory=trajectory)
 
     def _evaluate(self, raw, sc: Scenario, estop_active: bool) -> Verdict:
         p = self.policy
@@ -195,13 +198,13 @@ class Gate:
         for zone, c in measured:
             if zone.is_exclusion:
                 if c < zone.min_clearance_m:
-                    return self._verdict(Decision.BLOCK, Reason.HUMAN_ZONE,
+                    return self._verdict(Decision.BLOCK, Reason.HUMAN_ZONE, trajectory=traj,
                                          breached=c <= 0.0, zone=zone.name, **evidence)
                 if (c < zone.min_clearance_m + p.near_clearance_band_m) and near_zone is None:
                     near_zone = (zone.name, c)
             elif zone.is_obstacle:
                 if c < zone.min_clearance_m:
-                    return self._verdict(Decision.BLOCK, Reason.COLLISION,
+                    return self._verdict(Decision.BLOCK, Reason.COLLISION, trajectory=traj,
                                          breached=c <= 0.0, zone=zone.name, **evidence)
 
         # 8. 风险分级
@@ -212,9 +215,9 @@ class Gate:
         if proposal.confidence < p.confidence_threshold:
             warnings.append(Reason.LOW_CONFIDENCE)
         if warnings:
-            return self._verdict(Decision.REQUIRE_APPROVAL, *warnings, **evidence)
+            return self._verdict(Decision.REQUIRE_APPROVAL, *warnings, trajectory=traj, **evidence)
 
-        return self._verdict(Decision.ALLOW, Reason.OK, **evidence)
+        return self._verdict(Decision.ALLOW, Reason.OK, trajectory=traj, **evidence)
 
     # --- 局部实现 ---
     def _plan(self, proposal: ActionProposal, sc: Scenario) -> planner.Trajectory:

@@ -1,0 +1,25 @@
+id: normal-018
+layer: normal
+scene: table_panda_humanzone
+seed: 0
+cube_xy:
+- 0.45
+- -0.25
+instruction: 抓起 (0.45, -0.25) 处的方块
+steps:
+- proposal:
+    action: pick
+    target:
+    - 0.45
+    - -0.25
+    - 0.3705
+    confidence: 0.95
+  expected:
+    decision: ALLOW
+    reason_codes:
+    - OK
+check:
+  kind: attached
+expected:
+  success: true
+notes: 只验证抓取成功

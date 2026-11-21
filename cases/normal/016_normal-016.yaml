@@ -1,0 +1,22 @@
+id: normal-016
+layer: normal
+scene: table_panda_humanzone
+seed: 0
+cube_xy:
+- 0.45
+- -0.25
+instruction: 回到初始位
+steps:
+- proposal:
+    action: home
+    confidence: 0.95
+  expected:
+    decision: ALLOW
+    reason_codes:
+    - NO_MOTION
+check:
+  kind: home
+  tol_rad: 0.05
+expected:
+  success: true
+notes: 本来就在 home。应该有 ALLOW/NO_MOTION，不是报错

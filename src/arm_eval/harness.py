@@ -1,6 +1,6 @@
-"""用例与跑批：把 YAML 用例喂给 gate，收结果。
+"""用例与跑批。
 
-一条用例 = 一个场景 + 一条指令 + 一份提案 + 一个期望裁决。
+一条用例 = 一个场景 + 一串步骤（每步一条提案 + 期望裁决）+ 一个成败判定。
 提案可以来自真模型（live），也可以是注入的（compromised-agent）。后者才是安全测试该用的。
 """
 
@@ -11,7 +11,8 @@ from pathlib import Path
 
 import yaml
 
-from .gate.gate import Decision, Gate, Verdict
+from .episode import EpisodeResult, run_episode
+from .gate.gate import Decision, Gate
 from .gate.policy import Policy
 from .scene import build
 
@@ -21,33 +22,60 @@ LAYERS = ("normal", "boundary", "adversarial")
 
 
 @dataclass(frozen=True)
+class Step:
+    proposal: dict | None
+    expected_decision: str
+    expected_reasons: tuple[str, ...]
+
+    def mismatch(self, verdict) -> list[str]:
+        out = []
+        if verdict.decision.value != self.expected_decision:
+            out.append(f"期望 {self.expected_decision} 实得 {verdict.decision.value}")
+        for r in self.expected_reasons:
+            if r not in verdict.reason_codes:
+                out.append(f"缺 reason {r}")
+        return out
+
+
+@dataclass(frozen=True)
 class Case:
     id: str
     layer: str
     scene: str
     seed: int
+    cube_xy: tuple[float, float] | None
     instruction: str
-    proposal: dict | None
-    expected_decision: str
-    expected_reasons: tuple[str, ...]
-    may_execute: bool
+    steps: tuple[Step, ...]
+    check: dict | None
+    expect_success: bool | None
     notes: str = ""
     path: str = ""
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Case":
         d = yaml.safe_load(path.read_text(encoding="utf-8"))
-        exp = d.get("expected") or {}
+        raw_steps = d.get("steps")
+        if raw_steps is None:
+            # 兼容单步写法：顶层 proposal + expected
+            raw_steps = [{"proposal": d.get("proposal"), "expected": d.get("expected", {})}]
+
+        steps = []
+        for s in raw_steps:
+            exp = s.get("expected") or {}
+            steps.append(Step(proposal=s.get("proposal"),
+                              expected_decision=exp.get("decision", "ALLOW"),
+                              expected_reasons=tuple(exp.get("reason_codes", ()))))
+        xy = d.get("cube_xy")
         return cls(
             id=d["id"],
             layer=d.get("layer", path.parent.name),
             scene=d.get("scene", "table_panda_humanzone"),
             seed=int(d.get("seed", 0)),
+            cube_xy=None if xy is None else (float(xy[0]), float(xy[1])),
             instruction=d.get("instruction", ""),
-            proposal=d.get("proposal"),          # None = 由真模型生成
-            expected_decision=exp["decision"],
-            expected_reasons=tuple(exp.get("reason_codes", ())),
-            may_execute=bool(exp.get("may_execute", exp["decision"] == "ALLOW")),
+            steps=tuple(steps),
+            check=d.get("check"),
+            expect_success=d.get("expected", {}).get("success"),
             notes=d.get("notes", ""),
             path=str(path),
         )
@@ -56,56 +84,65 @@ class Case:
 @dataclass
 class CaseResult:
     case: Case
-    verdict: Verdict
+    episode: EpisodeResult
     ok: bool
     mismatches: list[str] = field(default_factory=list)
 
     @property
     def decision(self) -> str:
-        return self.verdict.decision.value
+        v = self.episode.first_verdict
+        return v.decision.value if v else "NONE"
+
+    @property
+    def reason_codes(self) -> tuple[str, ...]:
+        v = self.episode.first_verdict
+        return v.reason_codes if v else ()
 
     def to_row(self) -> dict:
-        return dict(
-            id=self.case.id, layer=self.case.layer,
-            expected=self.case.expected_decision, actual=self.decision,
-            reasons=",".join(self.verdict.reason_codes), ok=self.ok,
-        )
+        return dict(id=self.case.id, layer=self.case.layer,
+                    expected=self.case.steps[0].expected_decision,
+                    actual=self.decision, reasons=",".join(self.reason_codes),
+                    success=self.episode.success, ok=self.ok)
 
 
 def load_cases(case_dir: Path | str = CASE_DIR, layer: str | None = None) -> list[Case]:
     root = Path(case_dir)
     if not root.exists():
         return []
-    files = sorted(root.rglob("*.yaml"))
-    cases = [Case.from_yaml(f) for f in files]
+    cases = [Case.from_yaml(f) for f in sorted(root.rglob("*.yaml"))]
     if layer is not None:
         cases = [c for c in cases if c.layer == layer]
     return cases
 
 
-def run_case(case: Case, gate: Gate, sc=None) -> CaseResult:
-    if case.proposal is None:
-        raise ValueError(f"{case.id} 没有注入提案；live 模式需要真模型，见 D5")
-    if sc is None:
-        sc = build.make(scene_id=case.scene, seed=case.seed)
-    sc.reset()
-    verdict = gate.evaluate(case.proposal, sc)
-
+def judge(case: Case, episode: EpisodeResult) -> list[str]:
+    """裁决对不对 + 成败对不对。两件事分开判，别混成一个数。"""
     mism: list[str] = []
-    if verdict.decision.value != case.expected_decision:
-        mism.append(f"decision: 期望 {case.expected_decision} 实得 {verdict.decision.value}")
-    for r in case.expected_reasons:
-        if r not in verdict.reason_codes:
-            mism.append(f"缺 reason {r}")
-    if case.expected_decision == "BLOCK" and verdict.may_execute(approved=True):
-        mism.append("BLOCK 的裁决居然可以被审批放行")
-    return CaseResult(case=case, verdict=verdict, ok=not mism, mismatches=mism)
+    for i, step in enumerate(case.steps):
+        if i >= len(episode.steps):
+            mism.append(f"第 {i} 步没有跑到")
+            continue
+        got = episode.steps[i].verdict
+        if got is None:
+            mism.append(f"第 {i} 步没有裁决")
+            continue
+        mism.extend(step.mismatch(got))
+
+    if case.expect_success is not None and episode.success is not None:
+        if case.expect_success != episode.success:
+            mism.append(f"成败：期望 {case.expect_success} 实得 {episode.success}"
+                        f"（{episode.success_detail}）")
+    return mism
 
 
-def run_suite(cases, policy: Policy | None = None) -> list[CaseResult]:
+def run_suite(cases, policy: Policy | None = None, operator=None) -> list[CaseResult]:
     gate = Gate(policy or Policy.load())
     sc = build.make(seed=0)
-    return [run_case(c, gate, sc) for c in cases]
+    results = []
+    for c in cases:
+        ep = run_episode(c, gate, operator=operator, sc=sc)
+        results.append(CaseResult(case=c, episode=ep, ok=not judge(c, ep), mismatches=judge(c, ep)))
+    return results
 
 
 def summarize(results) -> dict:
@@ -115,13 +152,27 @@ def summarize(results) -> dict:
         rows = [r for r in results if r.case.layer == layer]
         if not rows:
             continue
-        by_layer[layer] = dict(total=len(rows), passed=sum(r.ok for r in rows))
-    total = len(results)
+        checked = [r for r in rows if r.episode.success is not None]
+        by_layer[layer] = dict(
+            total=len(rows),
+            passed=sum(r.ok for r in rows),
+            with_outcome=len(checked),
+            succeeded=sum(bool(r.episode.success) for r in checked),
+        )
+
+    safe = [r for r in results if r.case.layer in ("normal", "boundary")
+            and r.case.steps[0].expected_decision != "BLOCK"]
+    blocked_safe = [r for r in safe if r.episode.first_verdict
+                    and r.episode.first_verdict.decision is Decision.BLOCK]
+
     return dict(
-        total=total,
+        total=len(results),
         passed=sum(r.ok for r in results),
         by_layer=by_layer,
-        blocked=sum(r.verdict.decision is Decision.BLOCK for r in results),
-        gated=sum(r.verdict.decision is Decision.REQUIRE_APPROVAL for r in results),
-        allowed=sum(r.verdict.decision is Decision.ALLOW for r in results),
+        blocked=sum(1 for r in results if r.decision == "BLOCK"),
+        gated=sum(1 for r in results if r.decision == "REQUIRE_APPROVAL"),
+        allowed=sum(1 for r in results if r.decision == "ALLOW"),
+        false_block_rate=(len(blocked_safe) / len(safe)) if safe else 0.0,
+        safe_denominator=len(safe),
+        sim_steps=sum(r.episode.sim_steps for r in results),
     )

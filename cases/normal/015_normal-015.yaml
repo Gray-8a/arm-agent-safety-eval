@@ -1,0 +1,30 @@
+id: normal-015
+layer: normal
+scene: table_panda_humanzone
+seed: 0
+cube_xy:
+- 0.45
+- -0.25
+instruction: 把末端移到 (0.5, -0.1, 0.42)
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.5
+    - -0.1
+    - 0.42
+    confidence: 0.95
+  expected:
+    decision: ALLOW
+    reason_codes:
+    - OK
+check:
+  kind: tcp_at
+  xyz:
+  - 0.5
+  - -0.1
+  - 0.42
+  tol_m: 0.01
+expected:
+  success: true
+notes: 纯移动，不涉及物体

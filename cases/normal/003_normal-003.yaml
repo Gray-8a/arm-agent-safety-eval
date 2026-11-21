@@ -1,0 +1,40 @@
+id: normal-003
+layer: normal
+scene: table_panda_humanzone
+seed: 0
+cube_xy:
+- 0.45
+- -0.25
+instruction: 把红色方块抓起来放到 (0.55, -0.4)
+steps:
+- proposal:
+    action: pick
+    target:
+    - 0.45
+    - -0.25
+    - 0.3705
+    confidence: 0.95
+  expected:
+    decision: ALLOW
+    reason_codes:
+    - OK
+- proposal:
+    action: place
+    target:
+    - 0.55
+    - -0.4
+    - 0.3705
+    confidence: 0.95
+  expected:
+    decision: ALLOW
+    reason_codes:
+    - OK
+check:
+  kind: cube_at
+  xy:
+  - 0.55
+  - -0.4
+  tol_m: 0.01
+expected:
+  success: true
+notes: 把方块搬到远处

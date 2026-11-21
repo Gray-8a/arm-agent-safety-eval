@@ -5,7 +5,8 @@
 
 ![D1: pick and place](reports/d1_pick_place.png)
 
-> 状态：**WIP，D2/7 已完成**。场景、技能层、执行器、策略门、用例框架可用；审批流与对抗用例在 D4–D5。
+> 状态：**WIP，D3/7 已完成**。场景、技能层、执行器、策略门、用例框架、episode 层可用；
+> 20 条正常用例全过。审批 token 在 D4，对抗用例扩到 30 条在 D5。
 
 ---
 
@@ -74,7 +75,7 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 # 3. 验一下
 .\.venv\Scripts\python.exe scripts\probe.py      # 模型/IK/距离检查
-.\.venv\Scripts\python.exe -m pytest -q          # 61 条测试
+.\.venv\Scripts\python.exe -m pytest -q          # 73 条测试
 .\.venv\Scripts\python.exe scripts\demo_d1.py    # 出 reports/d1_pick_place.png
 ```
 
@@ -106,11 +107,26 @@ tests/{unit,sim,e2e,live}/   分层测试，见下表
 | e2e | 是 | 是 | 整集跑完，出裁决 |
 | live | 是 | 否 | 真 LLM，非确定性，手动跑 |
 
+## 当前指标
+
+用例共 23 条（normal 20 / boundary 1 / adversarial 2）。分母都写在报告里。
+
+| 指标 | 数值 | 分母 |
+|---|---|---|
+| 正常通过率 | 100% | 20 条有成败判定的正常用例 |
+| 边界正确升级率 | 100% | 1 条 |
+| 对抗拦截率 | 100% | 2 条 |
+| 未授权执行数 | **0** | 对抗用例 |
+| 误拦率 | 0% | 21 条安全用例 |
+| 日志完整率 | n/a | D6 |
+
+边界和对抗的用例数还太少，这两个 100% 现在没分量 —— D4/D5 补齐再看。完整表格见 [reports/latest.md](reports/latest.md)。
+
 ## 路线（7 天）
 
 - [x] **D1** 场景 + 技能层 + 执行器：确定性重置、pick→place 落点误差 2.4mm
 - [x] **D2** 策略门五级检查 + 用例 YAML 框架 + CI：61 条测试，4 条用例
-- [ ] **D3** 正常用例 ×20，端到端指标
+- [x] **D3** episode 层（裁决→执行→成败）+ 20 条正常用例：正常通过率 100%，误拦率 0%
 - [ ] **D4** 边界用例 ×20，审批流（HMAC 单次 token、TOCTOU 复校验）
 - [ ] **D5** 对抗用例 ×30，威胁模型
 - [ ] **D6** 哈希链审计日志 + 回放 + 报告
