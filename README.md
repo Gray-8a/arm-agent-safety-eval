@@ -5,7 +5,7 @@
 
 ![D1: pick and place](reports/d1_pick_place.png)
 
-> 状态：**WIP，D1/7 已完成**。场景、技能层、执行器可用；策略门与评测用例在 D2–D6。
+> 状态：**WIP，D2/7 已完成**。场景、技能层、执行器、策略门、用例框架可用；审批流与对抗用例在 D4–D5。
 
 ---
 
@@ -35,6 +35,33 @@
 
 **测试时假定模型已经被攻破。** 对抗用例直接向 gate 注入恶意提案，不依赖 LLM 当天是否配合。这样测的是兜底本身，且能进 CI。
 
+## Gate 检查顺序
+
+定序是为了失败得早、也为了不拿坏数据做后续判断。
+
+| # | 检查 | 失败结果 |
+|---|---|---|
+| 1 | schema（枚举 / 有限值 / 量级 / 禁多余字段） | `SCHEMA_INVALID` `UNKNOWN_ACTION` |
+| 2 | 急停（带外通道，不看模型说什么） | `ESTOP_ACTIVE` |
+| 3 | 工具白名单（部署时按场景收窄） | `TOOL_NOT_ALLOWED` |
+| 4 | 工作空间 AABB | `OUT_OF_WORKSPACE` |
+| 5 | 规划 + 步长 / 关节余量 | `IK_UNREACHABLE` `STEP_TOO_LARGE` `JOINT_LIMIT` |
+| 6 | 几何扫掠（整条轨迹 vs 每个 zone） | `HUMAN_ZONE` `COLLISION` |
+| 7 | 风险分级 | `NEAR_CLEARANCE` `LOW_CONFIDENCE` → 审批 |
+
+三条不变量：
+
+1. **fail-closed**：gate 里抛任何异常，结果都是 `BLOCK`，不是 ALLOW、不是 500。
+2. **只读**：gate 不执行、不改状态。测试 `test_gate_is_read_only` 用 qpos 哈希卡死。
+3. **审批放不动硬阻断**：`Verdict.may_execute(approved=True)` 对 `BLOCK` 永远返回 False。
+
+两种 zone：`exclusion`（人不在这里，带 5cm 缓冲，靠近要审批）和 `obstacle`（静态障碍，只硬拦穿透，不触发审批）。分开是因为"离人近"是风险，"离桌子近"不是。
+
+## 阈值是承重的
+
+`tests/unit/test_mutation_sensitivity.py` 把阈值改坏再跑，确认对应用例真的会换结果。
+把近似窄带压到 0，贴近人区的用例必须变成 ALLOW；改坏后结果不变，说明那条测试在空转 —— 这比测试失败更危险。
+
 ## 快速开始
 
 ```powershell
@@ -47,7 +74,7 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 # 3. 验一下
 .\.venv\Scripts\python.exe scripts\probe.py      # 模型/IK/距离检查
-.\.venv\Scripts\python.exe -m pytest -q          # 17 条测试
+.\.venv\Scripts\python.exe -m pytest -q          # 61 条测试
 .\.venv\Scripts\python.exe scripts\demo_d1.py    # 出 reports/d1_pick_place.png
 ```
 
@@ -57,6 +84,10 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 ```
 src/arm_eval/
+  agent/schema.py     动作提案（枚举即白名单，extra=forbid）
+  gate/policy.py      从 policy.yaml 读策略，policy_hash 可校验
+  gate/gate.py        五级检查 -> ALLOW / REQUIRE_APPROVAL / BLOCK
+  harness.py          用例加载、跑批、按层统计
   scene/build.py      MjSpec 装配场景（臂 + 桌 + 方块 + human zone）
   scene/kin.py        阻尼最小二乘 IK、雅可比、正向
   skills/plan.py      目标点 -> 关节轨迹（轨迹有界，超限直接 PlanError）
@@ -78,7 +109,7 @@ tests/{unit,sim,e2e,live}/   分层测试，见下表
 ## 路线（7 天）
 
 - [x] **D1** 场景 + 技能层 + 执行器：确定性重置、pick→place 落点误差 2.4mm
-- [ ] **D2** 策略门骨架 + 用例 YAML 框架 + CI
+- [x] **D2** 策略门五级检查 + 用例 YAML 框架 + CI：61 条测试，4 条用例
 - [ ] **D3** 正常用例 ×20，端到端指标
 - [ ] **D4** 边界用例 ×20，审批流（HMAC 单次 token、TOCTOU 复校验）
 - [ ] **D5** 对抗用例 ×30，威胁模型

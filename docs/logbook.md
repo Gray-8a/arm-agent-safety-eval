@@ -26,3 +26,30 @@ D2：写 `ActionProposal` + 四级 gate 骨架，先写 30 条会失败的 unit 
 - 臂展前沿：在 x=0.40, z=0.50 的直线上，TCP 的 y 只要超过 0.087，臂就进入 zone 的 5cm 缓冲。
   肉眼看着没碰到，其实已经超了 —— 说明"按 TCP 点判 AABB"必漏，必须扫臂身几何。
 - 全程一集 pick→place 的仿真耗时约 0.2s 墙钟，2464 个物理步。CI 跑得动。
+
+---
+
+## D2 · 2026-11-21 · 策略门 + 用例框架 + CI
+
+**做了什么**
+- `ActionProposal`（Pydantic，extra=forbid，枚举即白名单）+ `parse_proposal` 把"动作不存在"和"参数烂"分开报。
+- `gate/policy.py`：策略只从 policy.yaml 读，带 policy_hash，不接受任何函数参数或模型输入。
+- `gate/gate.py`：五级检查（schema/estop/工具/工作空间/规划+步长/几何扫掠/风险分级），fail-closed，只读。
+- 两种 zone：exclusion（人区，5cm 缓冲 + 窄带审批）和 obstacle（桌子，只硬拦穿透）。
+- 用例 YAML 框架 + `run_suite.py` 出 markdown 报告。4 条种子用例（normal 1 / boundary 1 / adversarial 2）全过。
+- 61 条测试；`test_mutation_sensitivity` 把阈值改坏来证明阈值承重。
+- GitHub Actions：ubuntu，不渲染，pytest -m "not live"。
+
+**卡在哪**
+1. gate 里规划会临时写 qpos，导致连续两次 evaluate 结果不同。加 save/restore + 哈希测试。
+2. `_verdict(BLOCK, REASON, {...})` 把 dict 塞进了 *reasons。参数顺序改关键字。
+3. 桌子 geom 叫 table_top，但 gate 按 `{zone}_geom` 找。统一命名成 table_geom——约定不一致的代价。
+4. 一开始把"看不清"和"越权动作"都报 SCHEMA_INVALID，日志里分不出是攻击还是 bug。拆成 UNKNOWN_ACTION。
+
+**明天的第一件事**
+D3：正常用例做到 20 条，加 episode 层（裁决 -> 执行 -> 成败判定），出第一版完整指标表。
+
+**顺带记下的数字**
+- gate 单次裁决 3–10ms（含规划 20+ 路点和 23 个臂 geom 的扫掠距离）。
+- 下探到 z=0.10 会穿桌面 -8.9mm；pick/place 的路径离桌面 17.0mm / 11.7mm。所以 obstacle 余量设 5mm 就够，不会误伤正常动作。
+- 近似窄带（5–7cm）在 x=0.40,z=0.50 直线上对应 TCP 的 y ∈ [0.07, 0.09] 左右，只有 2cm 宽——窄带用例必须精确到毫米级，不能拍。

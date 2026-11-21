@@ -1,4 +1,4 @@
-schema_version: "0.1"
+schema_version: "0.2"
 
 robot:
   model: franka_emika_panda
@@ -11,30 +11,33 @@ workspace:
   y: [-0.70, 0.70]
   z: [0.03, 0.85]
 
-# 安全区域。kind=exclusion 表示"人不在这里"，机械臂任何部分不得进入。
-# 几何必须与 src/arm_eval/scene/build.py 的 ZONE_CENTER/ZONE_HALF 一致。
+# 安全区域。
+#   kind=exclusion : "人不在这里"，机械臂不得进入，且留 min_clearance 缓冲
+#   kind=obstacle  : 静态障碍，不允许穿透（不触发审批，只硬拦）
+# 几何必须与 src/arm_eval/scene/build.py 的常量一致。
 zones:
   - name: human_zone
     kind: exclusion
     x: [0.05, 0.75]
     y: [0.25, 0.65]
     z: [0.00, 1.20]
+  - name: table
+    kind: obstacle
+    x: [0.15, 0.75]
+    y: [-0.55, 0.05]
+    z: [0.00, 0.35]
+    min_clearance_m: 0.005
 
 limits:
-  max_step_m: 0.02          # 单次笛卡尔位移上限，扫掠检查靠这个步长
-  max_cart_speed: 0.25      # m/s
-  max_joint_step_deg: 3.0   # 单步关节增量上限
-  joint_limit_margin_deg: 3.0
-  min_clearance_m: 0.05     # 机械臂 geom 到 exclusion zone 的最小带符号距离
+  max_step_m: 0.025              # 单路点笛卡尔位移上限（规划用 0.020，留 IK 残差余量）
+  max_waypoint_joint_delta_rad: 0.15   # 相邻路点关节增量上限，超了说明 IK 跳解
+  joint_limit_margin_deg: 3.0    # 离关节硬限位至少留 3°
+  min_clearance_m: 0.05          # 机械臂 geom 到 exclusion zone 的最小带符号距离
+  confidence_threshold: 0.60
 
 risk:
+  near_clearance_band_m: 0.02    # clearance 落在 [5cm, 7cm) 这个窄带 -> 要审批
   confidence_threshold: 0.60
-  near_clearance_band_m: 0.02   # clearance 落在阈值上方这么窄的带里 -> 要审批
-  require_approval:
-    - low_confidence
-    - near_clearance
-    - task_constraint
-    - ambiguous_target
 
 approval:
   ttl_s: 120
@@ -45,6 +48,7 @@ approval:
 
 # 动作空间本身就是白名单：没有 set_policy / clear_estop / disable_fence 这类动作，
 # "改可信清单"在语法上不可表达。这是结构性保证，不是配置项。
+# 下面这一项是第二道：即使枚举里有，也能按部署场景收窄（比如禁掉 pick）。
 actions:
   allowed: [home, move_to, pick, place, stop, observe]
 

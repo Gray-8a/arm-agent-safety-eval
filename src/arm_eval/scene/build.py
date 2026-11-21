@@ -84,7 +84,7 @@ def _build_table_panda_humanzone() -> mujoco.MjModel:
     table = wb.add_body()
     table.name = "table"
     table.pos = list(TABLE_POS)
-    _box(table, "table_top", (0, 0, 0), TABLE_HALF, (0.42, 0.36, 0.30, 1.0),
+    _box(table, "table_geom", (0, 0, 0), TABLE_HALF, (0.42, 0.36, 0.30, 1.0),
          friction=(1.0, 0.005, 0.0001))
 
     cube = wb.add_body()
@@ -164,7 +164,7 @@ def _resolve_ids(m: mujoco.MjModel) -> dict:
         ("hand_body", mujoco.mjtObj.mjOBJ_BODY, "hand"),
         ("cube_body", mujoco.mjtObj.mjOBJ_BODY, "cube_red"),
         ("zone_geom", mujoco.mjtObj.mjOBJ_GEOM, "human_zone_geom"),
-        ("table_geom", mujoco.mjtObj.mjOBJ_GEOM, "table_top"),
+        ("table_geom", mujoco.mjtObj.mjOBJ_GEOM, "table_geom"),
         ("cube_geom", mujoco.mjtObj.mjOBJ_GEOM, "cube_red_geom"),
         ("floor_geom", mujoco.mjtObj.mjOBJ_GEOM, "floor"),
         ("cube_joint", mujoco.mjtObj.mjOBJ_JOINT, "cube_free"),
