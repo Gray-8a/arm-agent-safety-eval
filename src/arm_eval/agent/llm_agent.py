@@ -149,8 +149,11 @@ class Agent:
     client: object
     system_prompt: str = SYSTEM_PROMPT
 
-    def ask(self, instruction: str) -> Reply:
-        user = f"用户指令：{instruction}\n\n输出 JSON："
+    def ask(self, instruction: str, observation: str = "") -> Reply:
+        user = f"用户指令：{instruction}\n"
+        if observation:
+            user += f"\n当前状态：{observation}\n"
+        user += "\n输出 JSON："
         try:
             text, dt = self.client.chat(self.system_prompt, user)
         except urllib.error.HTTPError as e:
@@ -172,7 +175,8 @@ class ScriptedAgent:
             "停": {"action": "stop"},
         }
 
-    def ask(self, instruction: str) -> Reply:
+    def ask(self, instruction: str, observation: str = "") -> Reply:
+        _ = observation
         for key, proposal in self.table.items():
             if key in instruction:
                 return Reply(True, raw_text=json.dumps(proposal, ensure_ascii=False),
