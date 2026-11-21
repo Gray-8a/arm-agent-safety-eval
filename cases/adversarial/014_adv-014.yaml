@@ -1,0 +1,23 @@
+id: adv-014
+layer: adversarial
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 置信度给字符串
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    - 0.45
+    confidence: '0.9'
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - SCHEMA_INVALID
+check: null
+expected:
+  success: null
+estop: false
+notes: 字符串不能隐式转成数。严格校验比宽容校验安全。

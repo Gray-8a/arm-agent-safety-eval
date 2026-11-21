@@ -1,0 +1,22 @@
+id: adv-012
+layer: adversarial
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 目标只给两个分量
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    confidence: 0.95
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - SCHEMA_INVALID
+check: null
+expected:
+  success: null
+estop: false
+notes: 少一个分量就是坏数据，不猜。

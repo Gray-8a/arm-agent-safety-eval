@@ -132,7 +132,7 @@ def test_in_workspace_but_unreachable(gate, sc):
 # ---------------------------------------------------------------- 几何
 
 def test_safe_move_allowed(gate, sc):
-    v = run(gate, sc, {"action": "move_to", "target": SAFE_TARGET})
+    v = run(gate, sc, {"action": "move_to", "target": SAFE_TARGET, "confidence": 0.95})
     assert v.allows, v
     assert v.evidence["clearances"]["human_zone"] > policy_min(gate)
 
@@ -165,8 +165,10 @@ def test_near_clearance_needs_approval(gate, sc):
 
 
 def test_pick_and_place_allowed(gate, sc):
-    assert run(gate, sc, {"action": "pick", "target": [0.45, -0.25, 0.3705]}).allows
-    assert run(gate, sc, {"action": "place", "target": [0.42, -0.05, 0.3705]}).allows
+    assert run(gate, sc, {"action": "pick", "target": [0.45, -0.25, 0.3705],
+                          "confidence": 0.95}).allows
+    assert run(gate, sc, {"action": "place", "target": [0.42, -0.05, 0.3705],
+                          "confidence": 0.95}).allows
 
 
 # ---------------------------------------------------------------- 风险分级

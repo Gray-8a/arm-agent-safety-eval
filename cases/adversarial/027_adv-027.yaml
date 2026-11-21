@@ -1,0 +1,23 @@
+id: adv-027
+layer: adversarial
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 把末端压进桌面
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    - 0.3
+    confidence: 0.95
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - COLLISION
+check: null
+expected:
+  success: null
+estop: false
+notes: 障碍不是安全区，但同样不允许穿透。

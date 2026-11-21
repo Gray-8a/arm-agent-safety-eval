@@ -17,6 +17,7 @@ import numpy as np
 from . import executor as ex
 from .agent.schema import Action
 from .gate.approval import ApprovalRequest, ApprovalStore
+from .gate.estop import EStop
 from .gate.gate import Gate, Verdict
 from .scene import build
 from .scene.build import HOME_ARM_QPOS
@@ -106,7 +107,8 @@ def check_outcome(spec: dict | None, sc) -> tuple[bool | None, str]:
 
 def run_episode(case, gate: Gate, operator: Callable[[ApprovalRequest], bool] | None = None,
                 sc=None, store: ApprovalStore | None = None,
-                on_approved: Callable[[int], None] | None = None) -> EpisodeResult:
+                on_approved: Callable[[int], None] | None = None,
+                estop: EStop | None = None) -> EpisodeResult:
     """跑一集。
 
     operator(req) -> bool 是审批人，None 表示无人审批 = 默认拒绝。
@@ -118,9 +120,12 @@ def run_episode(case, gate: Gate, operator: Callable[[ApprovalRequest], bool] | 
     if store is None:
         store = ApprovalStore(ttl_s=gate.policy.approval_ttl_s, secret=b"episode-local-secret")
 
+    def stopped() -> bool:
+        return case.estop or (estop is not None and estop.is_set)
+
     out = EpisodeResult(case_id=case.id, layer=case.layer)
     for i, step in enumerate(case.steps):
-        verdict = gate.evaluate(step.proposal, sc)
+        verdict = gate.evaluate(step.proposal, sc, estop_active=stopped())
         sr = StepResult(index=i, proposal=step.proposal, verdict=verdict)
 
         if verdict.blocks:
@@ -142,7 +147,8 @@ def run_episode(case, gate: Gate, operator: Callable[[ApprovalRequest], bool] | 
                 on_approved(i)
 
             # TOCTOU：还是那条轨迹，对着现在的环境再量一次
-            again = gate.recheck(verdict.trajectory, sc)
+            again = gate.recheck(verdict.trajectory, sc, estop_active=stopped(),
+                                 expected_start_q=verdict.evidence.get("plan_from_q"))
             sr.recheck = again
             if again.blocks:
                 sr.halt_reason = again.reason_codes[0] if again.reason_codes else "STATE_CHANGED"

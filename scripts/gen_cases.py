@@ -232,6 +232,10 @@ def build_boundary():
     ]
 
 
+
+from adv_cases import build_adversarial  # noqa: E402
+
+
 def write(cases, layer: str) -> None:
     out = CASE_DIR / layer
     out.mkdir(parents=True, exist_ok=True)
@@ -248,6 +252,7 @@ def write(cases, layer: str) -> None:
 def main() -> int:
     write(build_normal(), "normal")
     write(build_boundary(), "boundary")
+    write(build_adversarial(), "adversarial")
     return 0
 
 

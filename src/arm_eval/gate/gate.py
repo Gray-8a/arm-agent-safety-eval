@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import mujoco
+import numpy as np
 
 from ..agent.schema import Action, ActionProposal, parse_proposal
 from ..scene.build import Scenario
@@ -159,6 +160,7 @@ class Gate:
                                      workspace=[list(p.workspace.lo), list(p.workspace.hi)])
 
         # 5. 规划（这里会抛 PlanError，由下面统一映射）
+        plan_from_q = sc.arm_qpos().copy()
         try:
             traj = self._plan(proposal, sc)
         except planner.PlanError as exc:
@@ -200,6 +202,7 @@ class Gate:
             max_cart_step_m=round(step, 5),
             clearances={z.name: round(c, 5) for z, c in measured},
             confidence=proposal.confidence,
+            plan_from_q=[float(x) for x in plan_from_q],
         )
 
         near_zone: tuple[str, float] | None = None
@@ -220,7 +223,7 @@ class Gate:
         if near_zone is not None:
             warnings.append(Reason.NEAR_CLEARANCE)
             evidence["near_zone"] = near_zone[0]
-        if proposal.confidence < p.confidence_threshold:
+        if proposal.needs_target() and proposal.confidence < p.confidence_threshold:
             warnings.append(Reason.LOW_CONFIDENCE)
         if warnings:
             return self._verdict(Decision.REQUIRE_APPROVAL, *warnings, trajectory=traj, **evidence)
@@ -228,13 +231,23 @@ class Gate:
         return self._verdict(Decision.ALLOW, Reason.OK, trajectory=traj, **evidence)
 
     # --- 局部实现 ---
-    def recheck(self, trajectory, sc: Scenario) -> Verdict:
+    def recheck(self, trajectory, sc: Scenario, estop_active: bool = False,
+                expected_start_q=None) -> Verdict:
         """审批通过之后、执行之前的复校验（TOCTOU）。
 
         只做一件事：拿**原来那条轨迹**对**现在**的环境再量一次距离。
         环境变了就拦。注意这里不重新规划 —— 重新规划等于换了一条没人批过的路径。
         """
+        if estop_active:
+            return self._verdict(Decision.BLOCK, Reason.ESTOP_ACTIVE, recheck=True)
         try:
+            if expected_start_q is not None:
+                delta = float(np.max(np.abs(sc.arm_qpos() - np.asarray(expected_start_q, dtype=float))))
+                if delta > 0.02:
+                    # 审批之后机械臂被挪走了：这条轨迹的起点已经不是真的起点了
+                    return self._verdict(Decision.BLOCK, Reason.STATE_CHANGED,
+                                         trajectory=trajectory, recheck=True,
+                                         pose_delta=round(delta, 4))
             measured = self._clearances(sc, trajectory)
             evidence = dict(clearances={z.name: round(c, 5) for z, c in measured},
                             recheck=True, waypoints=len(trajectory))

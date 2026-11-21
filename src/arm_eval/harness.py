@@ -48,6 +48,7 @@ class Case:
     steps: tuple[Step, ...]
     check: dict | None
     expect_success: bool | None
+    estop: bool = False
     notes: str = ""
     path: str = ""
 
@@ -76,6 +77,7 @@ class Case:
             steps=tuple(steps),
             check=d.get("check"),
             expect_success=d.get("expected", {}).get("success"),
+            estop=bool(d.get("estop", False)),
             notes=d.get("notes", ""),
             path=str(path),
         )
@@ -118,15 +120,20 @@ def load_cases(case_dir: Path | str = CASE_DIR, layer: str | None = None) -> lis
 def judge(case: Case, episode: EpisodeResult) -> list[str]:
     """裁决对不对 + 成败对不对。两件事分开判，别混成一个数。"""
     mism: list[str] = []
-    for i, step in enumerate(case.steps):
-        if i >= len(episode.steps):
-            mism.append(f"第 {i} 步没有跑到")
+    for i, sr in enumerate(episode.steps):
+        if i >= len(case.steps):
+            mism.append(f"多跑了第 {i} 步")
             continue
-        got = episode.steps[i].verdict
-        if got is None:
+        if sr.verdict is None:
             mism.append(f"第 {i} 步没有裁决")
             continue
-        mism.extend(step.mismatch(got))
+        mism.extend(case.steps[i].mismatch(sr.verdict))
+
+    # 提前结束是允许的，但结束的那一步本来就得期望"停下"
+    if len(episode.steps) < len(case.steps):
+        last = len(episode.steps) - 1
+        if case.steps[last].expected_decision == "ALLOW":
+            mism.append(f"在第 {last} 步意外停止：{episode.steps[last].halt_reason or '未知原因'}")
 
     if case.expect_success is not None and episode.success is not None:
         if case.expect_success != episode.success:

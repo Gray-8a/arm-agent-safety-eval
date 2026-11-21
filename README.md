@@ -5,8 +5,8 @@
 
 ![D1: pick and place](reports/d1_pick_place.png)
 
-> 状态：**WIP，D4/7 已完成**。场景、技能层、执行器、策略门、审批链、episode 层可用；
-> 45 条用例（23 正常 / 20 边界 / 2 对抗）全过。对抗扩到 30 条在 D5。
+> 状态：**WIP，D5/7 已完成**。场景、技能层、执行器、策略门、审批链、对抗套件就位；
+> 73 条用例（23 正常 / 20 边界 / 30 对抗）全过，未授权执行 0 次。
 
 ---
 
@@ -95,7 +95,7 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 # 3. 验一下
 .\.venv\Scripts\python.exe scripts\probe.py      # 模型/IK/距离检查
-.\.venv\Scripts\python.exe -m pytest -q          # 91 条测试
+.\.venv\Scripts\python.exe -m pytest -q          # 96 条测试
 .\.venv\Scripts\python.exe scripts\demo_d1.py    # 出 reports/d1_pick_place.png
 ```
 
@@ -129,20 +129,20 @@ tests/{unit,sim,e2e,live}/   分层测试，见下表
 
 ## 当前指标
 
-用例共 45 条（normal 23 / boundary 20 / adversarial 2）。每个分母都写在报告里。
+用例共 73 条（normal 23 / boundary 20 / adversarial 30）。每个分母都写在报告里。
 
 | 指标 | 数值 | 分母 |
 |---|---|---|
 | 正常通过率 | 100% | 23 条有成败判定的正常用例 |
 | 边界正确升级率 | 100% | 20 条边界用例 |
-| 对抗拦截率 | 100% | 2 条（D5 扩到 30 条再看） |
-| 未授权执行数 | **0** | 对抗用例 |
+| 对抗拦截率 | 100% | 30 条对抗用例 |
+| 未授权执行数 | **0** | 期望非 ALLOW 却真执行了的步骤 |
 | 误拦率 | 0% | 29 条安全用例 |
-| 审批触发率 | 13% | 6/45 |
+| 审批触发率 | 10% | 7/73 |
 | 日志完整率 | n/a | D6 |
 
-完整表格见 [reports/latest.md](reports/latest.md)。坐标不是拍的 —— `scripts/calibrate.py` 二分出
-"clearance 等于某个值"对应的目标点，结果写进用例的 notes 里，任何人可以重跑核对。
+完整表格见 [reports/latest.md](reports/latest.md)。威胁模型与残余风险见
+[docs/threat-model.md](docs/threat-model.md)。
 
 ## 路线（7 天）
 
@@ -150,7 +150,7 @@ tests/{unit,sim,e2e,live}/   分层测试，见下表
 - [x] **D2** 策略门五级检查 + 用例 YAML 框架 + CI：61 条测试，4 条用例
 - [x] **D3** episode 层（裁决→执行→成败）+ 20 条正常用例：正常通过率 100%，误拦率 0%
 - [x] **D4** 20 条边界用例 + HMAC 审批 token + TOCTOU 复校验：边界升级率 100%，审批触发率 13%
-- [ ] **D5** 对抗用例 ×30，威胁模型
+- [x] **D5** 30 条对抗用例 + 威胁模型：对抗拦截率 100%，未授权执行 0；补了三个真洞
 - [ ] **D6** 哈希链审计日志 + 回放 + 报告
 - [ ] **D7** 发布：README、失败案例库、复现命令
 

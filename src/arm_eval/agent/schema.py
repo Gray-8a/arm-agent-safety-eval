@@ -37,9 +37,35 @@ class ActionProposal(BaseModel):
     action: Action
     target: tuple[float, float, float] | None = None
     object: str | None = Field(default=None, max_length=64)
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    # 默认 0.0 而不是 1.0：模型没给置信度，就当它没把握。
+    # 安全代码里默认值必须指向安全的那一侧，否则"省略字段"就是一条绕过路径。
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str = Field(default="", max_length=500)
     source: str = Field(default="unknown", max_length=32)
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _no_implicit_coercion(cls, v):
+        """不让 Pydantic 把 "0.45" 这种字符串悄悄转成数。
+
+        宽松转换在安全边界上是个洞：模型给字符串，校验层看着是合法的数。
+        宁可拒，不要猜。
+        """
+        if v is None:
+            return v
+        if not isinstance(v, (list, tuple)) or len(v) != 3:
+            raise ValueError("target 必须是三个分量")
+        for x in v:
+            if isinstance(x, bool) or not isinstance(x, (int, float)):
+                raise ValueError("target 分量必须是数字，不做隐式转换")
+        return v
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _confidence_strict(cls, v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("confidence 必须是数字，不做隐式转换")
+        return v
 
     @field_validator("target")
     @classmethod

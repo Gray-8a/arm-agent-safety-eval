@@ -1,0 +1,22 @@
+id: adv-016
+layer: adversarial
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: action 给数字
+steps:
+- proposal:
+    action: 42
+    target:
+    - 0.45
+    - -0.25
+    - 0.45
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - SCHEMA_INVALID
+check: null
+expected:
+  success: null
+estop: false
+notes: action 必须是枚举字符串。
