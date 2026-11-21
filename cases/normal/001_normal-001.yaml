@@ -35,6 +35,7 @@ check:
   - 0.42
   - -0.05
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 把红方块放到左前方原点

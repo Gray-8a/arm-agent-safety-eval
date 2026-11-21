@@ -35,6 +35,7 @@ check:
   - 0.4
   - -0.3
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 从偏右的位置抓，放到偏左

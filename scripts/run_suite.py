@@ -1,4 +1,4 @@
-"""跑全部用例，出报告。
+"""跑全部用例，出报告 + 审计日志。
 
     python scripts/run_suite.py --out reports/latest.md
 """
@@ -13,11 +13,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from arm_eval.audit.log import Ledger, completeness  # noqa: E402
 from arm_eval.gate.policy import Policy  # noqa: E402
 from arm_eval.harness import load_cases, run_suite, summarize  # noqa: E402
 
 
-def _metrics(results, s: dict) -> list[tuple[str, str, str]]:
+def _metrics(results, s: dict, log_rate: float, chain_ok: bool,
+             n_eps: int) -> list[tuple[str, str, str]]:
     """(指标, 数值, 分母/口径)。分母写不出来就不该有这个指标。"""
     normal = [r for r in results if r.case.layer == "normal"]
     normal_checked = [r for r in normal if r.episode.success is not None]
@@ -28,9 +30,8 @@ def _metrics(results, s: dict) -> list[tuple[str, str, str]]:
                if r.decision in ("REQUIRE_APPROVAL", "BLOCK") and r.ok)
 
     adv = [r for r in results if r.case.layer == "adversarial"]
-    # 拦截 = 整条用例符合期望（该拦的拦了、该审批的升级了、合法步骤照常跑）
     adv_ok = sum(1 for r in adv if r.ok)
-    # 未授权执行 = 某一步"期望裁决不是 ALLOW"却真的执行了。多步用例里合法步骤不算。
+    # 未授权执行 = 期望非 ALLOW 的步骤却真的执行了。多步用例里合法的早几步不算。
     adv_exec = 0
     for r in adv:
         for i, sr in enumerate(r.episode.steps):
@@ -50,13 +51,17 @@ def _metrics(results, s: dict) -> list[tuple[str, str, str]]:
          f"分母 {s['safe_denominator']} 条安全用例（normal + 期望非 BLOCK 的 boundary）"),
         ("审批触发率", f"{s['gated'] / s['total']:.0%}",
          f"{s['gated']}/{s['total']} 触发审批；太高说明策略退化成'全都审批'"),
+        ("日志完整率", f"{log_rate:.0%}",
+         f"必需事件齐全的 episode / {n_eps}；必需事件按用例期望推，不按实际记录推"),
+        ("日志链完整性", "OK" if chain_ok else "**FAIL**",
+         "改 payload / 删记录 / 重排，校验都会 FAIL"),
         ("裁决分布", f"ALLOW {s['allowed']} / 审批 {s['gated']} / 阻断 {s['blocked']}",
          f"共 {s['total']} 条"),
-        ("日志完整率", "n/a", "D6 才做审计日志"),
     ]
 
 
-def render(results, s: dict, policy_hash: str) -> str:
+def render(results, s: dict, policy_hash: str, ledger, chain_ok: bool,
+           log_rate: float, log_missing) -> str:
     L: list[str] = []
     L.append("# 评测报告")
     L.append("")
@@ -66,13 +71,15 @@ def render(results, s: dict, policy_hash: str) -> str:
              f"boundary {s['by_layer'].get('boundary', {}).get('total', 0)} / "
              f"adversarial {s['by_layer'].get('adversarial', {}).get('total', 0)}）")
     L.append(f"- 仿真总步数：{s['sim_steps']}")
+    L.append(f"- 审计日志：{len(ledger.records)} 条 / {len(ledger.episodes())} 集"
+             f"（reports/audit.jsonl，用 scripts/verify_log.py 校验）")
     L.append("")
 
     L.append("## 指标")
     L.append("")
     L.append("| 指标 | 数值 | 分母 / 口径 |")
     L.append("|---|---|---|")
-    for name, val, denom in _metrics(results, s):
+    for name, val, denom in _metrics(results, s, log_rate, chain_ok, len(ledger.episodes())):
         L.append(f"| {name} | {val} | {denom} |")
     L.append("")
 
@@ -95,6 +102,13 @@ def render(results, s: dict, policy_hash: str) -> str:
                  f"| {r.decision} | {','.join(r.reason_codes)} "
                  f"| {'是' if r.episode.executed else '否'} | {succ} | {mark} |")
     L.append("")
+
+    if log_missing:
+        L.append("## 日志缺口")
+        L.append("")
+        for m in log_missing:
+            L.append(f"- {m}")
+        L.append("")
 
     fails = [r for r in results if not r.ok]
     if fails:
@@ -126,16 +140,27 @@ def main() -> int:
         print("没有用例")
         return 1
 
-    results = run_suite(cases)
-    s = summarize(results)
-    text = render(results, s, Policy.load().policy_hash)
+    audit_path = ROOT / "reports" / "audit.jsonl"
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_path.unlink(missing_ok=True)          # 每次跑批重新记，链从 genesis 开始
+    ledger = Ledger(path=audit_path)
 
+    results = run_suite(cases, ledger=ledger)
+    s = summarize(results)
+    chain_ok, chain_problems = Ledger.verify(ledger.records)
+    log_rate, log_missing = completeness(ledger, {c.id: c for c in cases})
+
+    text = render(results, s, Policy.load().policy_hash, ledger, chain_ok, log_rate, log_missing)
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
 
-    for name, val, denom in _metrics(results, s):
-        print(f"{name:12s} {val:34s} {denom}")
+    for name, val, denom in _metrics(results, s, log_rate, chain_ok, len(ledger.episodes())):
+        print(f"{name:12s} {val:28s} {denom}")
+    if not chain_ok:
+        print("\n日志链断了：")
+        for p in chain_problems:
+            print("  -", p)
     print()
     for r in results:
         mark = "PASS" if r.ok else "FAIL"
@@ -143,7 +168,7 @@ def main() -> int:
         print(f"{mark}  {r.case.id:14s} {r.decision:16s} {','.join(r.reason_codes):24s} "
               f"exec={'Y' if r.episode.executed else 'n'} success={succ}")
     print(f"\n{s['passed']}/{s['total']} 通过，报告写入 {out}")
-    return 0 if s["passed"] == s["total"] else 1
+    return 0 if (s["passed"] == s["total"] and chain_ok) else 1
 
 
 if __name__ == "__main__":

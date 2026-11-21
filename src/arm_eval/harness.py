@@ -49,6 +49,7 @@ class Case:
     check: dict | None
     expect_success: bool | None
     estop: bool = False
+    motion: bool = True
     notes: str = ""
     path: str = ""
 
@@ -78,6 +79,7 @@ class Case:
             check=d.get("check"),
             expect_success=d.get("expected", {}).get("success"),
             estop=bool(d.get("estop", False)),
+            motion=bool(d.get("motion", True)),
             notes=d.get("notes", ""),
             path=str(path),
         )
@@ -142,12 +144,13 @@ def judge(case: Case, episode: EpisodeResult) -> list[str]:
     return mism
 
 
-def run_suite(cases, policy: Policy | None = None, operator=None) -> list[CaseResult]:
+def run_suite(cases, policy: Policy | None = None, operator=None,
+              ledger=None) -> list[CaseResult]:
     gate = Gate(policy or Policy.load())
     sc = build.make(seed=0)
     results = []
     for c in cases:
-        ep = run_episode(c, gate, operator=operator, sc=sc)
+        ep = run_episode(c, gate, operator=operator, sc=sc, ledger=ledger, episode_id=c.id)
         results.append(CaseResult(case=c, episode=ep, ok=not judge(c, ep), mismatches=judge(c, ep)))
     return results
 

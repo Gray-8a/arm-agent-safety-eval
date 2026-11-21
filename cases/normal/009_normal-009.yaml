@@ -35,6 +35,7 @@ check:
   - 0.25
   - -0.28
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 放到靠近底座的左侧

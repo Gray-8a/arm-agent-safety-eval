@@ -35,6 +35,7 @@ check:
   - 0.55
   - -0.4
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 把方块搬到远处

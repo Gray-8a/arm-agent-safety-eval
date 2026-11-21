@@ -25,6 +25,7 @@ check:
   - -0.4
   - 0.45
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 纯移动，不涉及物体

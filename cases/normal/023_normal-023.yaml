@@ -25,6 +25,7 @@ check:
   - -0.25
   - 0.45
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: confidence 恰好等于 threshold(0.60)。判定用 < 而不是 <=，所以应当放行。

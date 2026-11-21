@@ -47,11 +47,11 @@ def go_home(reasons=("OK",)):
                 expected=dict(decision="ALLOW", reason_codes=list(reasons)))
 
 
-def normal_case(cid, instruction, cube_xy, steps, check, success, notes=""):
+def normal_case(cid, instruction, cube_xy, steps, check, success, notes="", motion=True):
     return dict(id=cid, layer="normal", scene="table_panda_humanzone", seed=0,
                 cube_xy=list(cube_xy) if cube_xy else None,
                 instruction=instruction, steps=steps, check=check,
-                expected=dict(success=success), notes=notes)
+                motion=motion, expected=dict(success=success), notes=notes)
 
 
 def boundary_case(cid, instruction, proposal, decision, reasons, notes, cube_xy=None):
@@ -99,8 +99,9 @@ def build_normal():
     cases.append(normal_case(
         "normal-016", "回到初始位", (0.45, -0.25),
         steps=[go_home(["NO_MOTION"])],
-        check=dict(kind="home", tol_rad=0.05), success=True,
-        notes="本来就在 home。应该有 ALLOW/NO_MOTION，不是报错"))
+        check=dict(kind="home", tol_rad=0.05), success=True, motion=False,
+        notes="本来就在 home。应该有 ALLOW/NO_MOTION，不是报错。"
+              "标记 motion=False：这条本来就不该有执行事件，日志完整率不能拿它扣分。"))
 
     cases.append(normal_case(
         "normal-017", "抓起方块然后收回初始位", (0.45, -0.25),

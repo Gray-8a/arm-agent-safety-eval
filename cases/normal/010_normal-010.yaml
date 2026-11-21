@@ -35,6 +35,7 @@ check:
   - 0.65
   - -0.15
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 放到桌面右前角

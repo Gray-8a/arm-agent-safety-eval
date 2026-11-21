@@ -25,6 +25,7 @@ check:
   - 0.063
   - 0.5
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: clearance 70.8mm，刚过 7cm 窄带上沿。y=0.063 由 calibrate.py 二分后再上移 1mm—— 恰好在阈值上会被浮点误差判成审批，贴边用例要留一点余量。这条属于正常层而不是边界层：它是'该放行'的贴边用例，进误拦率分母。

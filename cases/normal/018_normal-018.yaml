@@ -20,6 +20,7 @@ steps:
     - OK
 check:
   kind: attached
+motion: true
 expected:
   success: true
 notes: 只验证抓取成功

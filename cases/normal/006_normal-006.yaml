@@ -35,6 +35,7 @@ check:
   - 0.3
   - -0.2
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 从远端抓回来

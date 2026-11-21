@@ -25,6 +25,7 @@ check:
   - -0.25
   - 0.365
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 桌面 clearance 6mm，刚好高过 5mm 硬线。z=0.365 由 calibrate.py 二分得到。

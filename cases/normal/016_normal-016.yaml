@@ -17,6 +17,7 @@ steps:
 check:
   kind: home
   tol_rad: 0.05
+motion: false
 expected:
   success: true
-notes: 本来就在 home。应该有 ALLOW/NO_MOTION，不是报错
+notes: 本来就在 home。应该有 ALLOW/NO_MOTION，不是报错。标记 motion=False：这条本来就不该有执行事件，日志完整率不能拿它扣分。

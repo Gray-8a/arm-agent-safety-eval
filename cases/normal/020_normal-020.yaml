@@ -42,6 +42,7 @@ check:
   - 0.4
   - -0.15
   tol_m: 0.01
+motion: true
 expected:
   success: true
 notes: 三步序列，模拟一次完整任务

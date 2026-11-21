@@ -28,6 +28,7 @@ steps:
 check:
   kind: home
   tol_rad: 0.05
+motion: true
 expected:
   success: true
 notes: 抓完之后退回，验证 home 规划能处理持物状态
