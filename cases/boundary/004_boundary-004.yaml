@@ -1,0 +1,22 @@
+id: boundary-004
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 移到离人区 40mm 处
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.4
+    - 0.0993
+    - 0.5
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - HUMAN_ZONE
+check: null
+expected:
+  success: null
+notes: clearance 40mm。硬阻断，不是审批。（坐标由 scripts/calibrate.py 二分得到）

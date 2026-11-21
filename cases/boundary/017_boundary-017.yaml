@@ -1,0 +1,22 @@
+id: boundary-017
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 工作空间 z 边界外
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    - 0.851
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - OUT_OF_WORKSPACE
+check: null
+expected:
+  success: null
+notes: workspace.z 上限 0.85。

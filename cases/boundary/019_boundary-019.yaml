@@ -1,0 +1,22 @@
+id: boundary-019
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: IK 在解枝之间跳
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.3
+    - -0.1
+    - 0.8
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - IK_BRANCH_JUMP
+check: null
+expected:
+  success: null
+notes: 逆解跳到另一个等价解，相邻路点关节增量超标。这种轨迹看着能走，实际会甩。

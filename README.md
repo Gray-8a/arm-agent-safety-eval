@@ -5,8 +5,8 @@
 
 ![D1: pick and place](reports/d1_pick_place.png)
 
-> 状态：**WIP，D3/7 已完成**。场景、技能层、执行器、策略门、用例框架、episode 层可用；
-> 20 条正常用例全过。审批 token 在 D4，对抗用例扩到 30 条在 D5。
+> 状态：**WIP，D4/7 已完成**。场景、技能层、执行器、策略门、审批链、episode 层可用；
+> 45 条用例（23 正常 / 20 边界 / 2 对抗）全过。对抗扩到 30 条在 D5。
 
 ---
 
@@ -58,6 +58,26 @@
 
 两种 zone：`exclusion`（人不在这里，带 5cm 缓冲，靠近要审批）和 `obstacle`（静态障碍，只硬拦穿透，不触发审批）。分开是因为"离人近"是风险，"离桌子近"不是。
 
+## 审批：四条性质
+
+`gate/approval.py` 只做四件事，一件都不能少：
+
+1. **签名绑定提案** —— `HMAC(secret, request_id | proposal_digest | nonce | expires_at)`。
+   批了 A 不能拿去跑 B，改了提案哈希就不匹配。
+2. **单次使用** —— request_id 核销即入 consumed 集，重放报 `APPROVAL_REPLAY`。
+3. **有期限** —— TTL 到了报 `APPROVAL_EXPIRED`，默认拒绝。
+4. **碰不到硬阻断** —— 审批只能把 `REQUIRE_APPROVAL` 变成可执行，`BLOCK` 永远不可执行。
+
+密钥默认每进程随机生成；要固定才设 `ARM_EVAL_APPROVAL_SECRET`。硬编码默认密钥等于没有签名。
+
+### TOCTOU：批准那一刻安全，不等于执行那一刻安全
+
+审批通过后、执行前，`gate.recheck()` 拿**同一条轨迹**对着**现在的**环境再量一次距离。
+人不站在那里只是刚才的事。测试 `test_toctou_human_walks_closer` 把 zone 挪近 6cm，
+断言 episode 不执行且 `halt_reason == "STATE_CHANGED"`。
+
+注意这里不重新规划 —— 重新规划等于换了一条没人批过的路径。
+
 ## 阈值是承重的
 
 `tests/unit/test_mutation_sensitivity.py` 把阈值改坏再跑，确认对应用例真的会换结果。
@@ -75,7 +95,7 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 # 3. 验一下
 .\.venv\Scripts\python.exe scripts\probe.py      # 模型/IK/距离检查
-.\.venv\Scripts\python.exe -m pytest -q          # 73 条测试
+.\.venv\Scripts\python.exe -m pytest -q          # 91 条测试
 .\.venv\Scripts\python.exe scripts\demo_d1.py    # 出 reports/d1_pick_place.png
 ```
 
@@ -109,25 +129,27 @@ tests/{unit,sim,e2e,live}/   分层测试，见下表
 
 ## 当前指标
 
-用例共 23 条（normal 20 / boundary 1 / adversarial 2）。分母都写在报告里。
+用例共 45 条（normal 23 / boundary 20 / adversarial 2）。每个分母都写在报告里。
 
 | 指标 | 数值 | 分母 |
 |---|---|---|
-| 正常通过率 | 100% | 20 条有成败判定的正常用例 |
-| 边界正确升级率 | 100% | 1 条 |
-| 对抗拦截率 | 100% | 2 条 |
+| 正常通过率 | 100% | 23 条有成败判定的正常用例 |
+| 边界正确升级率 | 100% | 20 条边界用例 |
+| 对抗拦截率 | 100% | 2 条（D5 扩到 30 条再看） |
 | 未授权执行数 | **0** | 对抗用例 |
-| 误拦率 | 0% | 21 条安全用例 |
+| 误拦率 | 0% | 29 条安全用例 |
+| 审批触发率 | 13% | 6/45 |
 | 日志完整率 | n/a | D6 |
 
-边界和对抗的用例数还太少，这两个 100% 现在没分量 —— D4/D5 补齐再看。完整表格见 [reports/latest.md](reports/latest.md)。
+完整表格见 [reports/latest.md](reports/latest.md)。坐标不是拍的 —— `scripts/calibrate.py` 二分出
+"clearance 等于某个值"对应的目标点，结果写进用例的 notes 里，任何人可以重跑核对。
 
 ## 路线（7 天）
 
 - [x] **D1** 场景 + 技能层 + 执行器：确定性重置、pick→place 落点误差 2.4mm
 - [x] **D2** 策略门五级检查 + 用例 YAML 框架 + CI：61 条测试，4 条用例
 - [x] **D3** episode 层（裁决→执行→成败）+ 20 条正常用例：正常通过率 100%，误拦率 0%
-- [ ] **D4** 边界用例 ×20，审批流（HMAC 单次 token、TOCTOU 复校验）
+- [x] **D4** 20 条边界用例 + HMAC 审批 token + TOCTOU 复校验：边界升级率 100%，审批触发率 13%
 - [ ] **D5** 对抗用例 ×30，威胁模型
 - [ ] **D6** 哈希链审计日志 + 回放 + 报告
 - [ ] **D7** 发布：README、失败案例库、复现命令

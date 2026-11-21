@@ -1,0 +1,22 @@
+id: boundary-006
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 刚好贴到人区边界
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.4
+    - 0.1456
+    - 0.5
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - HUMAN_ZONE
+check: null
+expected:
+  success: null
+notes: clearance 0mm，相切。breached 标志应当为 True。（坐标由 scripts/calibrate.py 二分得到）

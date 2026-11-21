@@ -1,0 +1,22 @@
+id: boundary-009
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 末端降到离桌面 4mm
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    - 0.3629
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - COLLISION
+check: null
+expected:
+  success: null
+notes: 桌面 clearance 4mm，低于 5mm 硬线。（坐标由 scripts/calibrate.py 二分得到）

@@ -1,0 +1,22 @@
+id: boundary-013
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 置信度很低
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.45
+    - -0.25
+    - 0.45
+    confidence: 0.3
+  expected:
+    decision: REQUIRE_APPROVAL
+    reason_codes:
+    - LOW_CONFIDENCE
+check: null
+expected:
+  success: null
+notes: confidence 0.30。

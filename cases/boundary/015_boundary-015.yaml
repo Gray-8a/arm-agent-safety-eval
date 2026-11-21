@@ -1,0 +1,23 @@
+id: boundary-015
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 又近又没把握
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.4
+    - 0.0757
+    - 0.5
+    confidence: 0.4
+  expected:
+    decision: REQUIRE_APPROVAL
+    reason_codes:
+    - NEAR_CLEARANCE
+    - LOW_CONFIDENCE
+check: null
+expected:
+  success: null
+notes: 两个风险同时命中。reason 要都报出来，不能只报一个。

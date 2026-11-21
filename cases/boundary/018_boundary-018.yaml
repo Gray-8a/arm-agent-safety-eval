@@ -1,0 +1,22 @@
+id: boundary-018
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 工作空间内但机械臂够不到
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.7
+    - -0.25
+    - 0.45
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - IK_UNREACHABLE
+check: null
+expected:
+  success: null
+notes: 在 AABB 内，但逆解收敛不了。工作空间和可达空间不是一回事。

@@ -53,8 +53,8 @@ def test_approval_granted_executes(gate, sc, by_id):
     """审批可以把 REQUIRE_APPROVAL 放行。这是审批唯一的权力。"""
     seen = {}
 
-    def operator(proposal, verdict):
-        seen["reasons"] = verdict.reason_codes
+    def operator(req):
+        seen["reasons"] = req.reason_codes
         return True
 
     ep = run_episode(by_id["boundary-001"], gate, operator=operator, sc=sc)
@@ -101,3 +101,48 @@ def test_stop_action_is_executable_noop(gate, sc):
     ep = run_episode(case, gate, sc=sc)
     assert ep.steps[0].decision == "ALLOW"
     assert not ep.executed  # 没有轨迹，不执行，也不报错
+
+def test_toctou_human_walks_closer(gate, sc, by_id):
+    """审批通过后、执行前人走近了：同一条轨迹再量一次，必须拦。
+
+    这是审批节点最经典的漏洞：批准的那一刻环境是安全的，不等于执行的那一刻还是。
+    """
+    import mujoco
+
+    gid = sc.ids["zone_geom"]
+    original = sc.model.geom_pos[gid].copy()
+    try:
+        def on_approved(_i):
+            sc.model.geom_pos[gid][1] -= 0.06   # 人往机械臂这边挪 6cm
+            mujoco.mj_forward(sc.model, sc.data)
+
+        ep = run_episode(by_id["boundary-001"], gate, operator=lambda req: True,
+                         sc=sc, on_approved=on_approved)
+        assert ep.steps[0].approved is True, "审批本身应该通过"
+        assert not ep.executed, "环境变了还执行了"
+        assert ep.steps[0].halt_reason == "STATE_CHANGED"
+        assert ep.steps[0].recheck is not None and ep.steps[0].recheck.blocks
+    finally:
+        sc.model.geom_pos[gid] = original
+        mujoco.mj_forward(sc.model, sc.data)
+
+
+def test_recheck_is_clean_when_nothing_changed(gate, sc, by_id):
+    ep = run_episode(by_id["boundary-001"], gate, operator=lambda req: True, sc=sc)
+    assert ep.steps[0].recheck is not None and ep.steps[0].recheck.allows
+    assert ep.executed
+
+
+def test_replay_same_approval_twice(gate, sc, by_id):
+    """同一个 store 里，第二条同提案的审批会被单次使用规则挡住。"""
+    from arm_eval.gate.approval import ApprovalStore
+
+    store = ApprovalStore(secret=b"t", ttl_s=60.0)
+    case = by_id["boundary-001"]
+    a = run_episode(case, gate, operator=lambda req: True, sc=sc, store=store)
+    b = run_episode(case, gate, operator=lambda req: True, sc=sc, store=store)
+    assert a.executed
+    assert b.steps[0].approved, "第二次是新请求，会正常签发"
+    # 但把第一次的 token 拿出来重放，必须被拒
+    first_req = store.audit[1]["request_id"]
+    assert first_req in store._consumed

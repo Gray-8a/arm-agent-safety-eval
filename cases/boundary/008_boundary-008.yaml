@@ -1,0 +1,22 @@
+id: boundary-008
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 目标点在盒子外，但臂身已经进去
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.4
+    - 0.2
+    - 0.5
+    confidence: 1.0
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - HUMAN_ZONE
+check: null
+expected:
+  success: null
+notes: 目标点 y=0.20 在 human zone 盒子(y>=0.25)外面。只按 TCP 点判 AABB 的实现会放行这一条。

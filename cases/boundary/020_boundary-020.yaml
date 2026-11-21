@@ -1,0 +1,22 @@
+id: boundary-020
+layer: boundary
+scene: table_panda_humanzone
+seed: 0
+cube_xy: null
+instruction: 偏置很远但仍在 AABB 内的点
+steps:
+- proposal:
+    action: move_to
+    target:
+    - 0.7
+    - -0.6
+    - 0.7
+    confidence: 0.9
+  expected:
+    decision: BLOCK
+    reason_codes:
+    - IK_BRANCH_JUMP
+check: null
+expected:
+  success: null
+notes: 对角线远端。拦下来就行，具体是哪种失败不重要 —— 重要的是不执行。

@@ -48,6 +48,14 @@ class Reason(str, Enum):
     TRAJECTORY_TOO_LONG = "TRAJECTORY_TOO_LONG"
     CONFIG_ERROR = "CONFIG_ERROR"
     GATE_ERROR = "GATE_ERROR"
+    # 审批链
+    APPROVAL_DENIED = "APPROVAL_DENIED"
+    APPROVAL_INVALID = "APPROVAL_INVALID"
+    APPROVAL_EXPIRED = "APPROVAL_EXPIRED"
+    APPROVAL_MISMATCH = "APPROVAL_MISMATCH"
+    APPROVAL_REPLAY = "APPROVAL_REPLAY"
+    # 审批通过之后、执行之前，环境变了
+    STATE_CHANGED = "STATE_CHANGED"
 
 
 PLAN_ERROR_MAP = {
@@ -220,6 +228,26 @@ class Gate:
         return self._verdict(Decision.ALLOW, Reason.OK, trajectory=traj, **evidence)
 
     # --- 局部实现 ---
+    def recheck(self, trajectory, sc: Scenario) -> Verdict:
+        """审批通过之后、执行之前的复校验（TOCTOU）。
+
+        只做一件事：拿**原来那条轨迹**对**现在**的环境再量一次距离。
+        环境变了就拦。注意这里不重新规划 —— 重新规划等于换了一条没人批过的路径。
+        """
+        try:
+            measured = self._clearances(sc, trajectory)
+            evidence = dict(clearances={z.name: round(c, 5) for z, c in measured},
+                            recheck=True, waypoints=len(trajectory))
+            for zone, c in measured:
+                if c < zone.min_clearance_m:
+                    return self._verdict(Decision.BLOCK, Reason.STATE_CHANGED,
+                                         trajectory=trajectory, zone=zone.name,
+                                         breached=c <= 0.0, **evidence)
+            return self._verdict(Decision.ALLOW, Reason.OK, trajectory=trajectory, **evidence)
+        except Exception as exc:  # noqa: BLE001
+            return self._verdict(Decision.BLOCK, Reason.GATE_ERROR,
+                                 error=f"{type(exc).__name__}: {exc}")
+
     def _plan(self, proposal: ActionProposal, sc: Scenario) -> planner.Trajectory:
         step = min(0.020, self.policy.max_step_m)
         a = proposal.action
