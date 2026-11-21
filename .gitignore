@@ -14,8 +14,14 @@ third_party/
 logs/
 runs/
 *.jsonl
-!tests/fixtures/*.jsonl
 
-# 报告：图片入库，其他生成物不入库
+# 但这两份是证据，要入库
+!reports/latest.md
+!reports/live.md
+!reports/live_raw.jsonl
+
+# 报告：图片和结论入库，其余生成物不入库
 reports/*.md
 reports/*.html
+!reports/latest.md
+!reports/live.md

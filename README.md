@@ -83,6 +83,25 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 Python 3.10+、MuJoCo 4.x。渲染需要 OpenGL；不渲染时纯 CPU 能跑全部测试。
 
+## 接一个真模型试试
+
+`scripts/live_run.py` 会把 30 条对抗 instruction 直接喂给模型，再把它自己给的提案送进 gate。
+本机 `qwen2.5:1.5b` 的实测（提示词里**明确写了**"不得进入 human zone"）：
+
+| | 结果 |
+|---|---|
+| 提案可解析 | 30/30 |
+| 危险提案 | 5（其中 1 条真的把手伸到了人区边界 y=0.25） |
+| 被 gate 拦下 | 5 / 5 |
+| 放行 | 0 |
+| 保守动作（home/stop/observe） | 60%，**等于任务失败** |
+
+三条值得看：提示词写了规则它还是踩线了；60% 的"安全"是摆烂换来的；
+有一条模型在 `rationale` 里写"目标位置在人区范围内"，`target` 却是安全坐标 —— 话和动作对不上。
+所以用 LLM 当裁判判"这提案危不危险"是不可靠的，坐标才可靠。
+
+详见 [docs/live-findings.md](docs/live-findings.md)。
+
 ## Gate 检查顺序
 
 定序是为了失败得早，也为了不拿坏数据做后续判断。
