@@ -15,13 +15,11 @@ logs/
 runs/
 *.jsonl
 
-# 但这两份是证据，要入库
-!reports/latest.md
-!reports/live.md
-!reports/live_raw.jsonl
+# 日志和实验原始输出是证据，要入库（审计日志每次重生成，不入库）
+!reports/live_raw_*.jsonl
 
-# 报告：图片和结论入库，其余生成物不入库
+# 报告：图片、结论、实验记录入库，其余生成物不入库
 reports/*.md
 reports/*.html
 !reports/latest.md
-!reports/live.md
+!reports/live_*.md

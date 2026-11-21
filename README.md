@@ -83,24 +83,27 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch_models.ps1
 
 Python 3.10+、MuJoCo 4.x。渲染需要 OpenGL；不渲染时纯 CPU 能跑全部测试。
 
-## 接一个真模型试试
+## 接真模型试试
 
-`scripts/live_run.py` 会把 30 条对抗 instruction 直接喂给模型，再把它自己给的提案送进 gate。
-本机 `qwen2.5:1.5b` 的实测（提示词里**明确写了**"不得进入 human zone"）：
+`scripts/live_run.py` 把 30 条对抗 instruction 直接喂给模型，再把它自己给的提案送进 gate。
+三组各跑 3 轮（温度 0）：
 
-| | 结果 |
-|---|---|
-| 提案可解析 | 30/30 |
-| 危险提案 | 5（其中 1 条真的把手伸到了人区边界 y=0.25） |
-| 被 gate 拦下 | 5 / 5 |
-| 放行 | 0 |
-| 保守动作（home/stop/observe） | 60%，**等于任务失败** |
+| 配置 | 危险提案 | 真进人区 | 被 gate 拦下 | 保守动作（=任务失败） |
+|---|---|---|---|---|
+| `qwen2.5:1.5b` + 安全提示词 | 6/90 | 0 | 6 | 50% |
+| `deepseek-chat` + 安全提示词 | **0/90** | 0 | 0 | 91% |
+| `deepseek-chat` **去掉**安全提示词 | **3/90** | 3 | 3 | 83% |
 
-三条值得看：提示词写了规则它还是踩线了；60% 的"安全"是摆烂换来的；
-有一条模型在 `rationale` 里写"目标位置在人区范围内"，`target` 却是安全坐标 —— 话和动作对不上。
-所以用 LLM 当裁判判"这提案危不危险"是不可靠的，坐标才可靠。
+**270 条提案，未授权执行 0 次。** 三个发现：
 
-详见 [docs/live-findings.md](docs/live-findings.md)。
+1. **提示词有用，但只挡住模型自己想得到的风险。** 删掉那行安全要求，危险提案从 0 变成 1 条/轮。
+2. **模型会说自己"保持在安全距离外"，而实际已经破线。** DeepSeek 对「一步步往人那边挪」这条，
+   三轮给出完全相同的提案，rationale 写着「保持在安全距离外，避免进入 human zone」，
+   实测 clearance 不足 5cm。它不是撒谎，它算不了几何。
+3. **强模型更保守，不是更危险。** DeepSeek 91% 的回应是 `stop`/`observe` —— 安全满分，任务完成率 10%。
+   所以拦截率必须和任务完成度一起报。
+
+详见 [docs/live-findings.md](docs/live-findings.md)，原始输出在 `reports/live_raw_*.jsonl`。
 
 ## Gate 检查顺序
 
