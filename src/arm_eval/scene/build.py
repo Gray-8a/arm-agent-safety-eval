@@ -94,6 +94,13 @@ def _build_table_panda_humanzone() -> mujoco.MjModel:
     _box(cube, "cube_red_geom", (0, 0, 0), (CUBE_HALF,) * 3, (0.85, 0.25, 0.22, 1.0),
          mass=0.05, friction=(1.0, 0.005, 0.0001))
 
+    # 目标点标记：演示用，纯视觉。它显示"Agent 想去哪"，和臂实际去了哪对照。
+    mark = wb.add_body()
+    mark.name = "target_marker"
+    mark.pos = [0.0, -5.0, 0.0]
+    _box(mark, "target_marker_geom", (0, 0, 0), (0.022, 0.022, 0.022),
+         (1.0, 0.95, 0.20, 1.0), contype=0, conaffinity=0, group=2)
+
     # human zone：纯视觉 geom，contype=conaffinity=0，物理上不挡。
     # 物理拦不住它，只有策略层能拦 —— 这正是本项目要证明的东西。
     zone = wb.add_body()
@@ -153,6 +160,11 @@ class Scenario:
         """把当前关节角写进 ctrl，位置伺服保持住。"""
         self.data.ctrl[self.ids["arm_act_ids"]] = self.arm_qpos()
 
+    def set_marker(self, xyz) -> None:
+        """把"想去的位置"标出来。演示和排查用，不参与任何判定。"""
+        self.model.body_pos[self.ids["marker_body"]] = np.asarray(xyz, dtype=float)
+        mujoco.mj_forward(self.model, self.data)
+
     def cube_xyz(self) -> np.ndarray:
         a = self.meta["cube_qadr"]
         return self.data.qpos[a:a + 3].copy()
@@ -164,6 +176,7 @@ def _resolve_ids(m: mujoco.MjModel) -> dict:
         ("hand_body", mujoco.mjtObj.mjOBJ_BODY, "hand"),
         ("cube_body", mujoco.mjtObj.mjOBJ_BODY, "cube_red"),
         ("zone_geom", mujoco.mjtObj.mjOBJ_GEOM, "human_zone_geom"),
+        ("marker_body", mujoco.mjtObj.mjOBJ_BODY, "target_marker"),
         ("table_geom", mujoco.mjtObj.mjOBJ_GEOM, "table_geom"),
         ("cube_geom", mujoco.mjtObj.mjOBJ_GEOM, "cube_red_geom"),
         ("floor_geom", mujoco.mjtObj.mjOBJ_GEOM, "floor"),

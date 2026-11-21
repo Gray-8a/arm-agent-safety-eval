@@ -25,8 +25,9 @@
 4. **human zone 是纯视觉 geom**（`contype=conaffinity=0`）：物理上挡不住机械臂，只有策略层能拦。
    这是刻意的——它正好用来证明"物理拦不住的东西只有策略能拦"。但也意味着如果在策略层留了洞，仿真不会兜底。
 
-5. **场景几何是常量**：`ZONE_CENTER/ZONE_HALF` 在 `scene/build.py`，`policy.yaml` 里有一份对应的数字。
-   两处必须手工保持一致，没做自动校验。这本身就是一个待修的隐患。
+5. **场景几何仍是两份**：`scene/build.py` 的 `ZONE_CENTER/ZONE_HALF` 和 `policy.yaml` 的 zone 各写一遍。
+   之前是纯隐患，现在有 `tests/unit/test_policy_geometry_consistency.py` 兜着：
+   逐个 zone 比包围盒（容差 1mm），对不上 CI 就红。但两份数据本身还在，只是有了守卫。
 
 ## 可迁移性
 
